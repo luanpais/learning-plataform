@@ -77,7 +77,38 @@
       "id": "ordenacao-em-disco",
       "title": "Ordenação em disco e reutilização de espaço",
       "summary": "Interpolação e interpolação polifásica; reutilização de espaço; fragmentação interna e externa.",
-      "file": null
+      "pages": [
+        {
+          "id": "intercalacao-e-mergesort-externo",
+          "title": "Intercalação e mergesort externo",
+          "summary": "Intercalação de listas ordenadas e ordenação externa com mergesort.",
+          "file": "ordenacao-em-disco/intercalacao-e-mergesort-externo.md"
+        },
+        {
+          "id": "passadas-balanceada-e-polifasica",
+          "title": "Seleção por substituição e passadas",
+          "summary": "Runs maiores, intercalação balanceada e intercalação polifásica.",
+          "file": "ordenacao-em-disco/passadas-balanceada-e-polifasica.md"
+        },
+        {
+          "id": "reutilizacao-de-espaco-e-fragmentacao",
+          "title": "Reutilização de espaço e fragmentação",
+          "summary": "Lista de vagas, estratégias de alocação e compactação.",
+          "file": "ordenacao-em-disco/reutilizacao-de-espaco-e-fragmentacao.md"
+        },
+        {
+          "id": "exercicios-avaliativos-ordenacao-em-disco",
+          "title": "Exercícios avaliativos",
+          "summary": "Exercícios com gabarito sobre ordenação em disco e reutilização de espaço.",
+          "file": "ordenacao-em-disco/exercicios-avaliativos-ordenacao-em-disco.md"
+        },
+        {
+          "id": "slides-ordenacao-em-disco",
+          "title": "Slides",
+          "summary": "Apresentação resumida dos principais conceitos do tópico.",
+          "file": "ordenacao-em-disco/slides-ordenacao-em-disco.md"
+        }
+      ]
     },
     {
       "id": "indexacao-arquivos",
