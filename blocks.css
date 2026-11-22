@@ -1,4 +1,4 @@
-/* Blocos extras das aulas: slides, demo, video, exercicio, estrutura e pseudocodigo.
+/* Blocos extras das aulas: slides, demo, video, exercicio, estrutura, pseudocodigo e registro.
    O HTML é gerado por js/renderer.js. As cores vêm das variáveis do tema (claro e escuro). */
 
 /* No tema escuro, o estilo de código inline (theme.css) vazava para dentro dos blocos de código,
@@ -121,3 +121,104 @@ html[data-theme="dark"] .markdown .codigo-code code, html[data-theme="dark"] .ma
 .markdown .sp.ghost { opacity: .28; filter: grayscale(1); }
 /* rótulo comprido: o bichinho continua do mesmo tamanho; só abrimos espaço dos lados para o texto caber */
 .markdown .sp.wide { margin-left: calc(var(--w) * ((var(--len) * .23 - .74) / 2 + .07)); margin-right: calc(var(--w) * ((var(--len) * .23 - .74) / 2 + .07)); }
+
+/* Registro de tamanho fixo (bloco "registro"): barra proporcional, um botão por campo.
+   Larguras vêm das variáveis --w (campo, em %) e --u (parte usada do campo, em %) geradas pelo renderer.js. */
+.markdown .registro { container-type: inline-size; margin: 1.4em 0; padding: clamp(16px, 3vw, 24px); border: 1px solid var(--line); border-radius: 16px; background: var(--white); }
+.markdown .registro-title { margin: 0 0 12px; color: var(--teal); font-size: 12px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.markdown .registro-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
+.markdown .registro-tab { padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--ink); font: inherit; font-size: 13px; cursor: pointer; }
+.markdown .registro-tab[aria-pressed="true"] { border-color: transparent; background: var(--theme-action, var(--teal)); color: var(--theme-action-text, #fff); font-weight: 750; }
+.markdown .registro-ex[hidden], .markdown .registro-info[hidden] { display: none; }
+.markdown .registro-names, .markdown .registro-counts, .markdown .registro-bar { display: flex; }
+.markdown .registro-name, .markdown .registro-count { flex: 0 0 calc(var(--w) * 1%); min-width: 0; box-sizing: border-box; padding-right: 6px; font-size: 12px; color: var(--soft, var(--ink)); overflow-wrap: anywhere; }
+.markdown .registro-name { margin-bottom: 6px; font-weight: 750; }
+.markdown .registro-count { margin-top: 2px; }
+.markdown .registro-bar { height: 60px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.markdown .registro-seg { display: flex; flex: 0 0 calc(var(--w) * 1%); min-width: 0; height: 100%; margin: 0; padding: 0; border: 0; border-right: 1px solid var(--line); background: var(--paper); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.markdown .registro-seg:last-child { border-right: 0; }
+.markdown .registro-seg:hover { filter: brightness(.97); }
+.markdown .registro-seg[aria-pressed="true"] { outline: 3px solid var(--teal); outline-offset: -3px; }
+.markdown .registro-seg:focus-visible { outline: 3px dashed var(--ink); outline-offset: -3px; }
+.markdown .registro-used { display: flex; flex: 0 0 calc(var(--u) * 1%); align-items: center; min-width: 0; box-sizing: border-box; padding: 0 8px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font: .85em ui-monospace, SFMono-Regular, Menlo, monospace; }
+.markdown .registro-f0 .registro-used, .markdown .registro-key.used { background: var(--mint); }
+.markdown .registro-f1 .registro-used { background: var(--sky, #e5eff5); }
+.markdown .registro-f2 .registro-used { background: var(--theme-warning-bg, #fbf2d9); }
+.markdown .registro-free { display: flex; flex: 1; align-items: center; justify-content: center; min-width: 0; background: var(--paper); color: var(--muted, var(--soft)); font-size: 12px; }
+.markdown .registro-used + .registro-free { border-left: 1px dashed var(--line); }
+.markdown .registro-ticks { position: relative; height: 24px; margin-top: 2px; font-size: 12px; color: var(--soft, var(--ink)); }
+.markdown .registro-tick { position: absolute; top: 0; left: calc(var(--w) * 1%); transform: translateX(-50%); white-space: nowrap; text-align: center; }
+.markdown .registro-tick::before { content: ""; display: block; width: 1px; height: 6px; margin: 0 auto 2px; background: var(--line); }
+.markdown .registro-tick.first { transform: none; text-align: left; }
+.markdown .registro-tick.first::before { margin-left: 0; }
+.markdown .registro-tick.last { left: auto; right: 0; transform: none; text-align: right; }
+.markdown .registro-tick.last::before { margin-right: 0; }
+.markdown .registro-info { margin: 12px 0 0; padding: 10px 14px; border-radius: 10px; background: var(--mint); color: var(--ink); font-size: .95em; line-height: 1.5; }
+.markdown .registro-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 12px 0 0; font-size: 12px; color: var(--soft, var(--ink)); }
+.markdown .registro-key { display: inline-block; width: 10px; height: 10px; margin-right: 6px; border: 1px solid var(--line); border-radius: 2px; vertical-align: -1px; }
+.markdown .registro-key.free { border-style: dashed; background: var(--paper); }
+@container (max-width: 520px) { .markdown .registro-counts { display: none; } .markdown .registro-name { font-size: 11px; } .markdown .registro-used { padding: 0 5px; } }
+
+/* Exercício com alternativas clicáveis (bloco "exercicio" com "options") */
+.markdown .exercise-prompt { margin: 14px 0 8px; font-weight: 750; font-size: .95em; color: var(--ink); }
+.markdown .exercise-options { display: grid; gap: 8px; margin: 0 0 12px; }
+.markdown .exercise-option { display: flex; align-items: flex-start; gap: 12px; width: 100%; margin: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.markdown .exercise-option:hover { border-color: var(--teal); }
+.markdown .exercise-option:focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
+.markdown .exercise-option-mark { flex: 0 0 26px; display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; background: var(--mint); color: var(--ink); font-size: 13px; font-weight: 750; }
+.markdown .exercise-option-text { flex: 1; min-width: 0; white-space: pre-line; overflow-wrap: anywhere; }
+.markdown .exercise-option.correct { border-color: var(--theme-success, #176b49); background: var(--theme-success-bg, #e8f5ed); }
+.markdown .exercise-option.correct .exercise-option-mark { background: var(--theme-success, #176b49); color: #fff; }
+.markdown .exercise-option.wrong { border-color: var(--theme-error, #9a3e35); background: var(--theme-error-bg, #fff2ef); cursor: default; }
+.markdown .exercise-option.wrong .exercise-option-mark { background: var(--theme-error, #9a3e35); color: #fff; }
+.markdown .exercise[data-solved="true"] .exercise-option:not(.correct) { opacity: .6; cursor: default; }
+.markdown .exercise[data-solved="true"] .exercise-option { cursor: default; }
+.markdown .exercise-feedback { margin: 0 0 12px; padding: 10px 14px; border-radius: 10px; line-height: 1.5; white-space: pre-line; }
+.markdown .exercise-feedback[hidden] { display: none; }
+.markdown .exercise-feedback.ok { background: var(--theme-success-bg, #e8f5ed); color: var(--theme-success, #176b49); }
+.markdown .exercise-feedback.no { background: var(--theme-error-bg, #fff2ef); color: var(--theme-error, #9a3e35); }
+
+/* Arquivo com cabeçalho + registros fixos (bloco "arquivo") e bloco de disco (bloco "bloco") */
+.markdown .arquivo, .markdown .bloco { container-type: inline-size; margin: 1.4em 0; padding: clamp(16px, 3vw, 24px); border: 1px solid var(--line); border-radius: 16px; background: var(--white); }
+.markdown .arquivo-title, .markdown .bloco-title { margin: 0 0 12px; color: var(--teal); font-size: 12px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.markdown .arquivo-bar, .markdown .arquivo-ticks { display: flex; }
+.markdown .arquivo-bar { height: 64px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.markdown .arquivo-cell { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; box-sizing: border-box; margin: 0; padding: 0 4px; border: 0; border-right: 1px solid var(--line); background: var(--mint); color: var(--ink); font: inherit; text-align: center; }
+.markdown .arquivo-cell:last-child { border-right: 0; }
+.markdown .arquivo-head { flex: .85 1 0; background: var(--sky, #e5eff5); }
+.markdown .arquivo-more { flex: .6 1 0; background: var(--paper); color: var(--muted, var(--soft)); font-size: 20px; }
+.markdown .arquivo-rec { cursor: pointer; }
+.markdown .arquivo-rec:hover { filter: brightness(.97); }
+.markdown .arquivo-rec[aria-pressed="true"] { outline: 3px solid var(--teal); outline-offset: -3px; }
+.markdown .arquivo-rec:focus-visible { outline: 3px dashed var(--ink); outline-offset: -3px; }
+.markdown .arquivo-label { font-weight: 750; font-size: 14px; }
+.markdown .arquivo-size { font-size: 11px; color: var(--soft, var(--ink)); }
+.markdown .arquivo-ticks { padding: 0 1px; }
+.markdown .arquivo-tick { flex: 1 1 0; min-width: 0; padding-top: 8px; position: relative; font-size: 12px; color: var(--soft, var(--ink)); white-space: nowrap; }
+.markdown .arquivo-tick.head { flex: .85 1 0; }
+.markdown .arquivo-tick.more { flex: .6 1 0; }
+.markdown .arquivo-tick::before { content: ""; position: absolute; top: 0; left: 0; width: 1px; height: 6px; background: var(--line); }
+.markdown .arquivo-note { margin: 6px 0 0; font-size: 12px; color: var(--soft, var(--ink)); }
+.markdown .arquivo-calc { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 12px; }
+.markdown .arquivo-field, .markdown .bloco-field { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 750; color: var(--ink); }
+.markdown .arquivo-input, .markdown .bloco-input { width: 7.5em; box-sizing: border-box; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); font: inherit; font-weight: 400; }
+.markdown .arquivo-input:focus-visible, .markdown .bloco-input:focus-visible { outline: 3px solid var(--teal); outline-offset: 1px; }
+.markdown .arquivo-result { flex: 1 1 280px; margin: 0; padding: 10px 14px; border-radius: 10px; background: var(--mint); color: var(--ink); line-height: 1.5; }
+.markdown .bloco-fields { display: flex; flex-wrap: wrap; gap: 10px 20px; margin: 0 0 10px; }
+.markdown .bloco-presets { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 14px; font-size: 13px; color: var(--soft, var(--ink)); }
+.markdown .bloco-preset { padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--ink); font: inherit; font-size: 13px; cursor: pointer; }
+.markdown .bloco-preset:hover { border-color: var(--teal); }
+.markdown .bloco-bar { display: flex; height: 56px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.markdown .bloco-recs { flex: 0 1 calc(var(--w) * 1%); background: repeating-linear-gradient(90deg, var(--mint) 0, var(--mint) calc(100% / var(--n) - 1px), var(--soft, #42636a) calc(100% / var(--n) - 1px), var(--soft, #42636a) calc(100% / var(--n))); }
+.markdown .bloco-recs { background: repeating-linear-gradient(90deg, var(--mint) 0, var(--mint) calc(100% / var(--n) - 1px), color-mix(in srgb, var(--teal) 70%, var(--mint)) calc(100% / var(--n) - 1px), color-mix(in srgb, var(--teal) 70%, var(--mint)) calc(100% / var(--n))); }
+.markdown .bloco-recs[data-dense="true"] { background: var(--mint); }
+.markdown .bloco-sobra { flex: 0 0 calc(var(--w) * 1%); background: var(--theme-warning, #76520b); }
+.markdown .bloco-sobra[data-has="true"] { min-width: 3px; }
+.markdown .bloco-ticks { display: flex; justify-content: space-between; margin-top: 4px; font-size: 12px; color: var(--soft, var(--ink)); }
+.markdown .bloco-calc { margin: 12px 0 0; padding: 10px 14px; list-style: none; border-radius: 10px; background: var(--mint); color: var(--ink); line-height: 1.7; }
+.markdown .bloco-calc li { margin: 0; padding: 0; }
+.markdown .bloco-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 12px 0 0; font-size: 12px; color: var(--soft, var(--ink)); }
+.markdown .bloco-key { display: inline-block; width: 10px; height: 10px; margin-right: 6px; border: 1px solid var(--line); border-radius: 2px; vertical-align: -1px; }
+.markdown .bloco-key.recs { background: var(--mint); }
+.markdown .bloco-key.sobra { background: var(--theme-warning, #76520b); border-color: transparent; }
+@container (max-width: 420px) { .markdown .arquivo-size { display: none; } .markdown .arquivo-tick { font-size: 11px; } .markdown .arquivo-head, .markdown .arquivo-tick.head { flex: 1.4 1 0; } .markdown .arquivo-head .arquivo-label { font-size: 11px; } }
