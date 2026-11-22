@@ -198,12 +198,31 @@
       '<div class="stepper-controls"><button type="button" data-stepper="prev" disabled>‹ Anterior</button><button type="button" data-stepper="play" class="play">▶ Executar</button><span class="stepper-counter" aria-live="polite">1 / ' + count + '</span><button type="button" data-stepper="next"' + (count < 2 ? " disabled" : "") + ">Próximo ›</button></div></section>";
   }
 
+  // Exercício com gabarito. Se tiver "options", o aluno clica numa alternativa e vê na hora se acertou
+  // (cada alternativa pode ter um "feedback" próprio, útil para explicar o erro típico).
+  const EXERCISE_MAX_OPCOES = 6;
+
   function renderExercise(source) {
     const data = parseJson(source);
     if (!data || typeof data.title !== "string" || typeof data.statement !== "string" || typeof data.answer !== "string" || !data.answer.trim()) {
       return blockError("Este exercício precisa de title, statement e answer.");
     }
-    return `<section class="exercise"><h4>${escapeHtml(data.title)}</h4><p class="exercise-statement">${escapeHtml(data.statement)}</p><details class="exercise-solution"><summary>Ver gabarito</summary><div class="exercise-answer">${escapeHtml(data.answer)}</div></details></section>`;
+    let escolha = "";
+    let certa = "";
+    if (data.options !== undefined) {
+      const options = data.options;
+      const ok = Array.isArray(options) && options.length >= 2 && options.length <= EXERCISE_MAX_OPCOES
+        && options.every((o) => o && typeof o.text === "string" && o.text.trim() && (o.feedback === undefined || typeof o.feedback === "string"))
+        && options.filter((o) => o.correct === true).length === 1;
+      if (!ok) return blockError(`As alternativas do exercício precisam de 2 a ${EXERCISE_MAX_OPCOES} itens com text e exatamente uma com "correct": true.`);
+      certa = ` data-correct="${options.findIndex((o) => o.correct === true)}"`;
+      const botoes = options.map((o, n) => `<button type="button" class="exercise-option" data-exercise-option="${n}" aria-pressed="false"><span class="exercise-option-mark" aria-hidden="true">${String.fromCharCode(65 + n)}</span><span class="exercise-option-text">${escapeHtml(o.text)}</span></button>`).join("");
+      const retornos = options.map((o, n) => o.correct === true
+        ? `<p class="exercise-feedback ok" data-for="${n}" hidden><strong>Correto!</strong> ${escapeHtml(o.feedback || "")}</p>`
+        : `<p class="exercise-feedback no" data-for="${n}" hidden><strong>Incorreto.</strong> ${escapeHtml(o.feedback || "Confira os cálculos e tente outra alternativa.")}</p>`).join("");
+      escolha = `<p class="exercise-prompt">Escolha a alternativa correta:</p><div class="exercise-options" role="group" aria-label="Alternativas">${botoes}</div><div class="exercise-feedbacks" aria-live="polite">${retornos}</div>`;
+    }
+    return `<section class="exercise"${certa}><h4>${escapeHtml(data.title)}</h4><p class="exercise-statement">${escapeHtml(data.statement)}</p>${escolha}<details class="exercise-solution"><summary>Ver gabarito</summary><div class="exercise-answer">${escapeHtml(data.answer)}</div></details></section>`;
   }
 
   // ---- Bloco "carrossel": um passo por imagem (caminho relativo ao .md ou URL https) ----
@@ -226,7 +245,188 @@
     return renderStepper("carrossel", title, `<p class="stepper-title">${escapeHtml(title)}</p>`, panels);
   }
 
-  const BLOCK_RENDERERS = { video: renderVideo, slides: renderSlides, demo: renderDemo, carrossel: renderCarrossel, exercicio: renderExercise, codigo: renderCodigo };
+
+  // ---- Bloco "registro": campos de tamanho fixo numa barra proporcional; cada campo é clicável ----
+  const REGISTRO_MAX_CAMPOS = 12;
+
+  // Tamanho em bytes (UTF-8), como o arquivo vai gravar o texto: "João" ocupa 5 bytes.
+  function byteLength(text) {
+    return typeof TextEncoder === "function" ? new TextEncoder().encode(text).length : text.length;
+  }
+
+  function registroPct(value, total) {
+    return Math.round((value / total) * 100000) / 1000;
+  }
+
+  function registroRange(start, size) {
+    return size === 1 ? `byte ${start}` : `bytes ${start} a ${start + size - 1}`;
+  }
+
+  function renderRegistro(source) {
+    const data = parseJson(source);
+    if (!data || typeof data !== "object" || !Array.isArray(data.campos)) return blockError("Este bloco de registro tem um erro de formato.");
+    const campos = data.campos;
+    if (campos.length < 1 || campos.length > REGISTRO_MAX_CAMPOS) return blockError(`O registro precisa de 1 a ${REGISTRO_MAX_CAMPOS} campos.`);
+    const camposOk = campos.every((c) => c && typeof c.nome === "string" && c.nome.trim() && Number.isInteger(c.tamanho) && c.tamanho > 0);
+    if (!camposOk) return blockError("Cada campo do registro precisa de um nome e de um tamanho inteiro maior que zero.");
+    const exemplos = data.exemplos === undefined ? [{ rotulo: "Layout", valores: campos.map(() => "") }] : data.exemplos;
+    if (!Array.isArray(exemplos) || exemplos.length < 1) return blockError("Os exemplos do registro precisam de pelo menos um item.");
+    for (const ex of exemplos) {
+      if (!ex || typeof ex.rotulo !== "string" || !Array.isArray(ex.valores) || ex.valores.length !== campos.length || !ex.valores.every((v) => typeof v === "string")) {
+        return blockError("Cada exemplo precisa de um rótulo e de um valor (texto) para cada campo.");
+      }
+      const longo = campos.findIndex((c, i) => byteLength(ex.valores[i]) > c.tamanho);
+      if (longo >= 0) return blockError(`O valor "${ex.valores[longo]}" não cabe no campo ${campos[longo].nome} (${campos[longo].tamanho} bytes).`);
+    }
+
+    const titulo = String(data.titulo || "Registro de tamanho fixo");
+    const cabecalho = Number.isInteger(data.cabecalho) && data.cabecalho >= 0 ? String(data.cabecalho) : "cabeçalho";
+    const total = campos.reduce((soma, c) => soma + c.tamanho, 0);
+    const inicios = [];
+    campos.reduce((pos, c) => { inicios.push(pos); return pos + c.tamanho; }, 0);
+    const largura = (c) => ` style="--w:${registroPct(c.tamanho, total)}"`;
+
+    const paineis = exemplos.map((ex, e) => {
+      const usados = ex.valores.map(byteLength);
+      const usadoTotal = usados.reduce((soma, n) => soma + n, 0);
+      const livre = total - usadoTotal;
+      const nomes = campos.map((c) => `<span class="registro-name"${largura(c)}>${escapeHtml(c.nome)} (${c.tamanho} bytes)</span>`).join("");
+      const barra = campos.map((c, i) => {
+        const usado = usados[i] ? `<span class="registro-used" style="--u:${registroPct(usados[i], c.tamanho)}">${escapeHtml(ex.valores[i])}</span>` : "";
+        return `<button type="button" class="registro-seg registro-f${i % 3}" data-registro-campo="${i}" aria-pressed="false" aria-label="${escapeHtml(c.nome)}: ${usados[i]} de ${c.tamanho} bytes usados"${largura(c)}>${usado}<span class="registro-free">${usados[i] ? "" : "vazio"}</span></button>`;
+      }).join("");
+      const marcas = campos.map((c, i) => `<span class="registro-tick${i === 0 ? " first" : ""}" style="--w:${registroPct(inicios[i], total)}">byte ${inicios[i]}</span>`).join("")
+        + `<span class="registro-tick last">byte ${total}</span>`;
+      const contagens = campos.map((c, i) => `<span class="registro-count"${largura(c)}>${usados[i]} usados + ${c.tamanho - usados[i]} sem uso</span>`).join("");
+      const resumo = (usadoTotal === 0
+        ? `Registro vazio: os ${total} bytes continuam reservados no arquivo.`
+        : `Total: <strong>${usadoTotal} bytes usados</strong> de ${total}. Cada registro ocupa sempre ${total} bytes, então sobram ${livre} (${Math.round((livre / total) * 100)}%) sem uso.`)
+        + " Clique em um campo para ver onde ele fica no arquivo.";
+      const infos = campos.map((c, i) => {
+        const valor = usados[i]
+          ? `Valor guardado: <code>${escapeHtml(ex.valores[i])}</code> (${usados[i]} bytes usados e ${c.tamanho - usados[i]} sem uso).`
+          : `Campo vazio: os ${c.tamanho} bytes continuam reservados.`;
+        const offset = `${cabecalho} + RRN × ${total}${inicios[i] ? ` + ${inicios[i]}` : ""}`;
+        return `<p class="registro-info" data-info="${i}" hidden>Campo <code>${escapeHtml(c.nome)}</code>: ${registroRange(inicios[i], c.tamanho)} dentro do registro. ${valor} No arquivo, ele começa no byte <code>${offset}</code>.</p>`;
+      }).join("");
+      return `<div class="registro-ex" data-ex="${e}"${e ? " hidden" : ""}><div class="registro-names">${nomes}</div><div class="registro-bar">${barra}</div><div class="registro-ticks">${marcas}</div><div class="registro-counts">${contagens}</div><div class="registro-infos" aria-live="polite"><p class="registro-info" data-info="resumo">${resumo}</p>${infos}</div></div>`;
+    }).join("");
+
+    const abas = exemplos.length > 1
+      ? `<div class="registro-tabs" role="group" aria-label="Exemplos de registro">${exemplos.map((ex, e) => `<button type="button" class="registro-tab" data-registro-ex="${e}" aria-pressed="${e === 0}">${escapeHtml(ex.rotulo)}</button>`).join("")}</div>`
+      : "";
+    const legenda = '<p class="registro-legend"><span><i class="registro-key used"></i>bytes usados</span><span><i class="registro-key free"></i>reservados e sem uso</span></p>';
+    return `<section class="registro" data-kind="registro" aria-label="${escapeHtml(titulo)}"><p class="registro-title">${escapeHtml(titulo)}</p>${abas}${paineis}${legenda}</section>`;
+  }
+
+
+  // ---- Blocos "arquivo" e "bloco": desenhos com calculadora (offset por RRN; fator de bloco e sobra) ----
+  const ARQUIVO_MAX_RRN = 999999999;
+  const ARQUIVO_MAX_BYTES = 1000000;
+  const BLOCO_MAX = 1048576;
+  const ARQUIVO_ERRO = "Digite um RRN inteiro, a partir de 0.";
+  const BLOCO_ERRO = `Digite tamanhos inteiros em bytes, de 1 a ${fmtInt(BLOCO_MAX)}.`;
+
+  function fmtInt(n) {
+    return String(Math.trunc(n)).replace(/\B(?=(\d{3})+(?!\d))/g, "\u00a0");
+  }
+
+  function fmtPct(part, total) {
+    const v = (part / total) * 100;
+    if (v === 0) return "0%";
+    if (v < 0.05) return "menos de 0,1%";
+    return `${String(Math.round(v * 10) / 10).replace(".", ",")}%`;
+  }
+
+  const inteiro = (n, min, max) => Number.isInteger(n) && n >= min && n <= max;
+
+  function arquivoResultado(cab, reg, rrn) {
+    const inicio = cab + rrn * reg;
+    const conta = cab > 0 ? `${fmtInt(cab)} + ${fmtInt(rrn)} × ${fmtInt(reg)}` : `${fmtInt(rrn)} × ${fmtInt(reg)}`;
+    return `O RRN ${fmtInt(rrn)} começa no byte <code>${conta} = ${fmtInt(inicio)}</code> e ocupa os bytes ${fmtInt(inicio)} a ${fmtInt(inicio + reg - 1)}.`;
+  }
+
+  function renderArquivo(source) {
+    const data = parseJson(source);
+    if (!data || typeof data !== "object") return blockError("Este bloco de arquivo tem um erro de formato.");
+    const cab = data.cabecalho === undefined ? 0 : data.cabecalho;
+    const reg = data.registro;
+    const mostrar = data.mostrar === undefined ? 4 : data.mostrar;
+    if (!inteiro(reg, 1, ARQUIVO_MAX_BYTES) || !inteiro(cab, 0, ARQUIVO_MAX_BYTES) || !inteiro(mostrar, 1, 8)) {
+      return blockError(`O arquivo precisa de "registro" (1 a ${ARQUIVO_MAX_BYTES} bytes), "cabecalho" opcional (0 a ${ARQUIVO_MAX_BYTES}) e "mostrar" opcional (1 a 8 registros).`);
+    }
+    const rrn = data.rrn === undefined ? Math.min(3, mostrar - 1) : data.rrn;
+    if (!inteiro(rrn, 0, ARQUIVO_MAX_RRN)) return blockError(`O "rrn" inicial precisa ser um inteiro de 0 a ${ARQUIVO_MAX_RRN}.`);
+    const titulo = String(data.titulo || "Arquivo de registros de tamanho fixo");
+
+    const celulas = [];
+    const marcas = [];
+    if (cab > 0) {
+      celulas.push(`<div class="arquivo-cell arquivo-head"><span class="arquivo-label">cabeçalho</span><span class="arquivo-size">${fmtInt(cab)} bytes</span></div>`);
+      marcas.push('<span class="arquivo-tick head">0</span>');
+    }
+    for (let i = 0; i < mostrar; i += 1) {
+      celulas.push(`<button type="button" class="arquivo-cell arquivo-rec" data-arquivo-rrn="${i}" aria-pressed="${i === rrn}" aria-label="RRN ${i}: ${fmtInt(reg)} bytes"><span class="arquivo-label">R${i}</span><span class="arquivo-size">${fmtInt(reg)} bytes</span></button>`);
+      marcas.push(`<span class="arquivo-tick">${fmtInt(cab + i * reg)}</span>`);
+    }
+    celulas.push('<div class="arquivo-cell arquivo-more" aria-hidden="true">…</div>');
+    marcas.push(`<span class="arquivo-tick more">${fmtInt(cab + mostrar * reg)}</span>`);
+
+    return `<section class="arquivo" data-kind="arquivo" data-cab="${cab}" data-reg="${reg}" aria-label="${escapeHtml(titulo)}"><p class="arquivo-title">${escapeHtml(titulo)}</p>`
+      + `<div class="arquivo-bar">${celulas.join("")}</div><div class="arquivo-ticks" aria-hidden="true">${marcas.join("")}</div>`
+      + '<p class="arquivo-note">O número abaixo de cada faixa é o byte onde ela começa, contado a partir do início do arquivo.</p>'
+      + `<div class="arquivo-calc"><label class="arquivo-field">RRN <input type="number" class="arquivo-input" data-arquivo-input min="0" max="${ARQUIVO_MAX_RRN}" step="1" inputmode="numeric" value="${rrn}"></label>`
+      + `<p class="arquivo-result" aria-live="polite">${arquivoResultado(cab, reg, rrn)}</p></div></section>`;
+  }
+
+  function blocoParts(B, R) {
+    const fator = Math.floor(B / R);
+    const usado = fator * R;
+    const sobra = B - usado;
+    const plural = fator === 1 ? "registro" : "registros";
+    const calc = fator === 0
+      ? `<li>O registro (${fmtInt(R)} bytes) é maior que o bloco (${fmtInt(B)} bytes): na organização não espalhada, nenhum registro cabe.</li>`
+      : `<li>fator de bloco = ${fmtInt(B)} / ${fmtInt(R)} = <strong>${fmtInt(fator)} ${plural}</strong></li>`
+        + `<li>registros: ${fmtInt(fator)} × ${fmtInt(R)} = ${fmtInt(usado)} bytes</li>`
+        + `<li>sobra: ${fmtInt(B)} − ${fmtInt(usado)} = <strong>${fmtInt(sobra)} bytes</strong> (${fmtPct(sobra, B)} do bloco)</li>`;
+    return {
+      fator,
+      sobra,
+      dense: fator > 200,
+      wRecs: Math.round((usado / B) * 100000) / 1000,
+      wSobra: Math.round((sobra / B) * 100000) / 1000,
+      calc,
+      legenda: `<span><i class="bloco-key recs"></i>${fmtInt(fator)} ${plural} (${fmtInt(usado)} bytes)</span><span><i class="bloco-key sobra"></i>sobra: ${fmtInt(sobra)} bytes</span>`,
+      label: `Bloco de ${fmtInt(B)} bytes com ${fmtInt(fator)} ${plural} de ${fmtInt(R)} bytes e ${fmtInt(sobra)} bytes de sobra.`,
+    };
+  }
+
+  function renderBloco(source) {
+    const data = parseJson(source);
+    if (!data || typeof data !== "object") return blockError("Este bloco de bloco de disco tem um erro de formato.");
+    const B = data.bloco;
+    const R = data.registro;
+    if (!inteiro(B, 1, BLOCO_MAX) || !inteiro(R, 1, B)) {
+      return blockError(`O bloco precisa de "bloco" (1 a ${BLOCO_MAX} bytes) e de "registro" (1 byte até o tamanho do bloco).`);
+    }
+    const exemplos = data.exemplos === undefined ? [] : data.exemplos;
+    const exemplosOk = Array.isArray(exemplos) && exemplos.length <= 6
+      && exemplos.every((e) => e && typeof e.rotulo === "string" && e.rotulo.trim() && inteiro(e.registro, 1, BLOCO_MAX) && (e.bloco === undefined || inteiro(e.bloco, 1, BLOCO_MAX)));
+    if (!exemplosOk) return blockError(`Os exemplos do bloco aceitam até 6 itens, cada um com "rotulo" e "registro" (e "bloco" opcional), em bytes de 1 a ${BLOCO_MAX}.`);
+    const titulo = String(data.titulo || "Bloco de disco com registros de tamanho fixo");
+    const parts = blocoParts(B, R);
+    const campo = (nome, rotulo, valor) => `<label class="bloco-field">${rotulo} <input type="number" class="bloco-input" data-bloco-input="${nome}" min="1" max="${BLOCO_MAX}" step="1" inputmode="numeric" value="${valor}"> bytes</label>`;
+    const presets = exemplos.length
+      ? `<div class="bloco-presets"><span class="bloco-presets-label">Experimente:</span>${exemplos.map((e) => `<button type="button" class="bloco-preset" data-bloco-set data-registro="${e.registro}"${e.bloco ? ` data-bloco="${e.bloco}"` : ""}>${escapeHtml(e.rotulo)}</button>`).join("")}</div>`
+      : "";
+    return `<section class="bloco" data-kind="bloco" aria-label="${escapeHtml(titulo)}"><p class="bloco-title">${escapeHtml(titulo)}</p>`
+      + `<div class="bloco-fields">${campo("bloco", "Bloco", B)}${campo("registro", "Registro", R)}</div>${presets}`
+      + `<div class="bloco-bar" role="img" aria-label="${parts.label}"><div class="bloco-recs" data-dense="${parts.dense}" style="--w:${parts.wRecs};--n:${Math.max(parts.fator, 1)}"></div><div class="bloco-sobra" data-has="${parts.sobra > 0}" style="--w:${parts.wSobra}"></div></div>`
+      + `<div class="bloco-ticks" aria-hidden="true"><span>byte 0</span><span class="bloco-end">byte ${fmtInt(B)}</span></div>`
+      + `<ul class="bloco-calc" aria-live="polite">${parts.calc}</ul><p class="bloco-legend">${parts.legenda}</p></section>`;
+  }
+
+  const BLOCK_RENDERERS = { video: renderVideo, slides: renderSlides, demo: renderDemo, carrossel: renderCarrossel, exercicio: renderExercise, codigo: renderCodigo, registro: renderRegistro, arquivo: renderArquivo, bloco: renderBloco };
 
   // Ponte para o renderizador do site: devolve o HTML do bloco, ou null se a linguagem não é nossa.
   function renderBlock(language, source, options = {}) {
@@ -292,11 +492,116 @@
     }, 1300);
   }
 
+  // Bloco "registro": troca de exemplo (abas) e destaque de um campo (clique de novo para voltar ao resumo).
+  function resetRegistroPanel(panel) {
+    panel.querySelectorAll(".registro-seg").forEach((seg) => seg.setAttribute("aria-pressed", "false"));
+    panel.querySelectorAll(".registro-info").forEach((info) => { info.hidden = info.dataset.info !== "resumo"; });
+  }
+
+  function toggleRegistro(button) {
+    const root = button.closest(".registro");
+    if (!root) return;
+    if (button.dataset.registroEx !== undefined) {
+      root.querySelectorAll(".registro-tab").forEach((tab) => tab.setAttribute("aria-pressed", String(tab === button)));
+      root.querySelectorAll(".registro-ex").forEach((panel) => {
+        panel.hidden = panel.dataset.ex !== button.dataset.registroEx;
+        resetRegistroPanel(panel);
+      });
+      return;
+    }
+    const panel = button.closest(".registro-ex");
+    const wasOn = button.getAttribute("aria-pressed") === "true";
+    resetRegistroPanel(panel);
+    if (wasOn) return;
+    button.setAttribute("aria-pressed", "true");
+    panel.querySelectorAll(".registro-info").forEach((info) => { info.hidden = info.dataset.info !== button.dataset.registroCampo; });
+  }
+
+  // Exercício com alternativas: acerto trava o exercício e abre o gabarito; erro marca só aquela alternativa.
+  function answerExercise(button) {
+    const root = button.closest(".exercise");
+    if (!root || root.dataset.solved === "true" || button.classList.contains("wrong")) return;
+    const picked = button.dataset.exerciseOption;
+    const right = picked === root.dataset.correct;
+    button.classList.add(right ? "correct" : "wrong");
+    button.setAttribute("aria-pressed", "true");
+    root.querySelectorAll(".exercise-feedback").forEach((feedback) => { feedback.hidden = feedback.dataset.for !== picked; });
+    if (right) {
+      root.dataset.solved = "true";
+      const solution = root.querySelector(".exercise-solution");
+      if (solution) solution.open = true;
+    }
+  }
+
+  // Bloco "arquivo": clicar num registro (ou digitar um RRN) recalcula o offset.
+  function updateArquivo(root, raw) {
+    const text = String(raw).trim();
+    const rrn = Number(text);
+    const valid = /^\d+$/.test(text) && rrn <= ARQUIVO_MAX_RRN;
+    root.querySelectorAll(".arquivo-rec").forEach((cell) => cell.setAttribute("aria-pressed", String(valid && cell.dataset.arquivoRrn === String(rrn))));
+    root.querySelector(".arquivo-result").innerHTML = valid ? arquivoResultado(Number(root.dataset.cab), Number(root.dataset.reg), rrn) : ARQUIVO_ERRO;
+  }
+
+  // Bloco "bloco": recalcula fator de bloco, sobra e a barra quando o aluno muda os tamanhos.
+  function updateBloco(root) {
+    const parse = (name) => {
+      const text = root.querySelector(`[data-bloco-input="${name}"]`).value.trim();
+      const n = Number(text);
+      return /^\d+$/.test(text) && n >= 1 && n <= BLOCO_MAX ? n : null;
+    };
+    const B = parse("bloco");
+    const R = parse("registro");
+    const calc = root.querySelector(".bloco-calc");
+    if (B === null || R === null) { calc.innerHTML = `<li>${BLOCO_ERRO}</li>`; return; }
+    const parts = blocoParts(B, R);
+    const recs = root.querySelector(".bloco-recs");
+    const sobra = root.querySelector(".bloco-sobra");
+    recs.style.setProperty("--w", parts.wRecs);
+    recs.style.setProperty("--n", Math.max(parts.fator, 1));
+    recs.dataset.dense = String(parts.dense);
+    sobra.style.setProperty("--w", parts.wSobra);
+    sobra.dataset.has = String(parts.sobra > 0);
+    root.querySelector(".bloco-bar").setAttribute("aria-label", parts.label);
+    root.querySelector(".bloco-end").textContent = `byte ${fmtInt(B)}`;
+    calc.innerHTML = parts.calc;
+    root.querySelector(".bloco-legend").innerHTML = parts.legenda;
+  }
+
   // Botões e setas ← → dos slides e das demonstrações (escuta delegada, instalada uma única vez).
   function attachInteractions(root) {
     if (root.__lessonInteractions) return;
     root.__lessonInteractions = true;
+    root.addEventListener("input", (event) => {
+      const target = event.target;
+      if (!target || !target.matches) return;
+      if (target.matches("[data-arquivo-input]")) {
+        const box = target.closest(".arquivo");
+        if (box) updateArquivo(box, target.value);
+      } else if (target.matches("[data-bloco-input]")) {
+        const box = target.closest(".bloco");
+        if (box) updateBloco(box);
+      }
+    });
     root.addEventListener("click", (event) => {
+      const arquivoCell = event.target.closest("[data-arquivo-rrn]");
+      if (arquivoCell) {
+        const box = arquivoCell.closest(".arquivo");
+        box.querySelector("[data-arquivo-input]").value = arquivoCell.dataset.arquivoRrn;
+        updateArquivo(box, arquivoCell.dataset.arquivoRrn);
+        return;
+      }
+      const blocoPreset = event.target.closest("[data-bloco-set]");
+      if (blocoPreset) {
+        const box = blocoPreset.closest(".bloco");
+        box.querySelector('[data-bloco-input="registro"]').value = blocoPreset.dataset.registro;
+        if (blocoPreset.dataset.bloco) box.querySelector('[data-bloco-input="bloco"]').value = blocoPreset.dataset.bloco;
+        updateBloco(box);
+        return;
+      }
+      const exerciseButton = event.target.closest("[data-exercise-option]");
+      if (exerciseButton) { answerExercise(exerciseButton); return; }
+      const registroButton = event.target.closest("[data-registro-ex], [data-registro-campo]");
+      if (registroButton) { toggleRegistro(registroButton); return; }
       const button = event.target.closest("[data-stepper]");
       if (!button || button.disabled) return;
       const stepper = button.closest(".stepper");

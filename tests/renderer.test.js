@@ -315,3 +315,256 @@ test("carrossel escapes attribute text and rejects an empty list", () => {
   assert.doesNotMatch(html, /<script>|<i>|<b>/);
   assert.match(renderMarkdown(fence("carrossel", { images: [] })), /pelo menos uma/);
 });
+
+// ---- Bloco "registro": campos de tamanho fixo em barra proporcional ----
+const REGISTRO = {
+  titulo: "Registro Aluno (70 bytes)",
+  campos: [{ nome: "nome", tamanho: 30 }, { nome: "curso", tamanho: 20 }, { nome: "cidade", tamanho: 20 }],
+  exemplos: [
+    { rotulo: "Ana", valores: ["Ana Souza", "Sistemas", "Mariana"] },
+    { rotulo: "Vazio", valores: ["", "", ""] },
+  ],
+};
+const registro = (data) => renderBlock("registro", JSON.stringify(data));
+
+test("registro renders one proportional segment per field and one panel per example", () => {
+  const html = registro(REGISTRO);
+  assert.match(html, /<section class="registro" data-kind="registro" aria-label="Registro Aluno \(70 bytes\)">/);
+  assert.strictEqual((html.match(/class="registro-ex"/g) || []).length, 2);
+  assert.strictEqual((html.match(/class="registro-seg /g) || []).length, 6);
+  assert.match(html, /data-registro-campo="0" aria-pressed="false" aria-label="nome: 9 de 30 bytes usados" style="--w:42\.857"/);
+  assert.match(html, /class="registro-used" style="--u:30">Ana Souza/);
+  assert.match(html, /<span class="registro-count" style="--w:28\.571">8 usados \+ 12 sem uso<\/span>/);
+  assert.match(html, /byte 30/);
+  assert.match(html, /byte 70/);
+});
+
+test("registro shows only the first example, with tabs, and the summary first", () => {
+  const html = registro(REGISTRO);
+  assert.match(html, /<div class="registro-ex" data-ex="0"><div/);
+  assert.match(html, /<div class="registro-ex" data-ex="1" hidden>/);
+  assert.match(html, /data-registro-ex="0" aria-pressed="true">Ana</);
+  assert.match(html, /data-registro-ex="1" aria-pressed="false">Vazio</);
+  assert.match(html, /<strong>24 bytes usados<\/strong> de 70[^<]*sobram 46 \(66%\)/);
+  assert.match(html, /Registro vazio: os 70 bytes continuam reservados/);
+  assert.match(html, /data-info="resumo">/);
+  assert.match(html, /data-info="2" hidden>/);
+});
+
+test("registro explains where each field starts, with the header size when given", () => {
+  const sem = registro(REGISTRO);
+  assert.match(sem, /Campo <code>nome<\/code>: bytes 0 a 29 dentro do registro/);
+  assert.match(sem, /<code>cabeçalho \+ RRN × 70<\/code>/);
+  assert.match(sem, /Campo <code>curso<\/code>: bytes 30 a 49/);
+  assert.match(sem, /<code>cabeçalho \+ RRN × 70 \+ 30<\/code>/);
+  const com = registro({ ...REGISTRO, cabecalho: 64 });
+  assert.match(com, /<code>64 \+ RRN × 70 \+ 50<\/code>/);
+});
+
+test("registro without examples shows just the layout, with no tabs", () => {
+  const html = registro({ campos: REGISTRO.campos });
+  assert.doesNotMatch(html, /registro-tabs/);
+  assert.strictEqual((html.match(/class="registro-ex"/g) || []).length, 1);
+  assert.match(html, /Registro vazio: os 70 bytes/);
+  assert.match(html, /<span class="registro-free">vazio<\/span>/);
+});
+
+test("registro counts bytes, not characters (UTF-8)", () => {
+  const html = registro({ campos: [{ nome: "nome", tamanho: 10 }], exemplos: [{ rotulo: "a", valores: ["João"] }] });
+  assert.match(html, /5 de 10 bytes usados/);
+  assert.match(html, /5 usados \+ 5 sem uso/);
+});
+
+test("registro single-byte field says 'byte' and not 'bytes 0 a 0'", () => {
+  const html = registro({ campos: [{ nome: "ativo", tamanho: 1 }, { nome: "id", tamanho: 4 }] });
+  assert.match(html, /Campo <code>ativo<\/code>: byte 0 dentro/);
+});
+
+test("registro escapes html coming from names, values, labels and title", () => {
+  const html = registro({
+    titulo: "<img src=x>",
+    campos: [{ nome: "<b>n</b>", tamanho: 40 }],
+    exemplos: [{ rotulo: "<script>x</script>", valores: ["<i>a</i>"] }, { rotulo: "<u>y</u>", valores: [""] }],
+  });
+  assert.doesNotMatch(html, /<script>|<img|<b>n|<i>a|<u>y/);
+  assert.match(html, /&lt;script&gt;x&lt;\/script&gt;/);
+  assert.match(html, /&lt;i&gt;a&lt;\/i&gt;/);
+});
+
+test("registro rejects broken json, bad fields and bad examples with quiz-error", () => {
+  const bad = [
+    "{",
+    JSON.stringify({}),
+    JSON.stringify({ campos: [] }),
+    JSON.stringify({ campos: Array.from({ length: 13 }, (_, i) => ({ nome: "c" + i, tamanho: 1 })) }),
+    JSON.stringify({ campos: [{ nome: "", tamanho: 5 }] }),
+    JSON.stringify({ campos: [{ nome: "a", tamanho: 0 }] }),
+    JSON.stringify({ campos: [{ nome: "a", tamanho: 2.5 }] }),
+    JSON.stringify({ campos: [{ nome: "a", tamanho: 5 }], exemplos: [] }),
+    JSON.stringify({ campos: [{ nome: "a", tamanho: 5 }], exemplos: [{ rotulo: "x", valores: [] }] }),
+    JSON.stringify({ campos: [{ nome: "a", tamanho: 5 }], exemplos: [{ rotulo: "x", valores: [7] }] }),
+    JSON.stringify({ campos: [{ nome: "a", tamanho: 5 }], exemplos: [{ valores: ["x"] }] }),
+  ];
+  bad.forEach((source) => assert.match(renderBlock("registro", source), /class="quiz-error"/, source));
+});
+
+test("registro rejects a value that does not fit in its field", () => {
+  const html = registro({ campos: [{ nome: "sigla", tamanho: 3 }], exemplos: [{ rotulo: "x", valores: ["ABCD"] }] });
+  assert.match(html, /class="quiz-error"[^>]*>O valor &quot;ABCD&quot; não cabe no campo sigla \(3 bytes\)/);
+});
+
+test("registro works through renderMarkdown like the other blocks", () => {
+  const html = renderMarkdown("## Estrutura\n\n```registro\n" + JSON.stringify(REGISTRO) + "\n```\n");
+  assert.match(html, /<h2>Estrutura<\/h2>/);
+  assert.match(html, /data-kind="registro"/);
+});
+
+// ---- Exercício com alternativas clicáveis ----
+const EX_OPCOES = {
+  title: "Ex", statement: "Quanto é 2 + 2?", answer: "Resolução",
+  options: [
+    { text: "3", feedback: "Confira a conta." },
+    { text: "4", correct: true, feedback: "Soma simples." },
+    { text: "5" },
+  ],
+};
+const exercicio = (data) => renderBlock("exercicio", JSON.stringify(data));
+
+test("exercicio with options renders one button per option and marks the right one", () => {
+  const html = exercicio(EX_OPCOES);
+  assert.match(html, /<section class="exercise" data-correct="1">/);
+  assert.strictEqual((html.match(/class="exercise-option"/g) || []).length, 3);
+  assert.match(html, /data-exercise-option="0" aria-pressed="false"><span class="exercise-option-mark" aria-hidden="true">A<\/span><span class="exercise-option-text">3<\/span>/);
+  assert.match(html, /data-exercise-option="2"[^>]*><span[^>]*>C<\/span>/);
+  assert.match(html, /Escolha a alternativa correta/);
+});
+
+test("exercicio feedback: hidden until a click, per-option text, default text for wrong answers", () => {
+  const html = exercicio(EX_OPCOES);
+  assert.match(html, /<p class="exercise-feedback no" data-for="0" hidden><strong>Incorreto\.<\/strong> Confira a conta\.<\/p>/);
+  assert.match(html, /<p class="exercise-feedback ok" data-for="1" hidden><strong>Correto!<\/strong> Soma simples\.<\/p>/);
+  assert.match(html, /data-for="2" hidden><strong>Incorreto\.<\/strong> Confira os cálculos e tente outra alternativa\./);
+});
+
+test("exercicio with options keeps the gabarito available", () => {
+  assert.match(exercicio(EX_OPCOES), /<details class="exercise-solution"><summary>Ver gabarito<\/summary><div class="exercise-answer">Resolução<\/div>/);
+});
+
+test("exercicio without options is unchanged: no buttons and no data-correct", () => {
+  const html = exercicio({ title: "t", statement: "s", answer: "a" });
+  assert.strictEqual(html, '<section class="exercise"><h4>t</h4><p class="exercise-statement">s</p><details class="exercise-solution"><summary>Ver gabarito</summary><div class="exercise-answer">a</div></details></section>');
+});
+
+test("exercicio rejects bad option lists with quiz-error", () => {
+  const um = [{ text: "x", correct: true }];
+  const semCerta = [{ text: "a" }, { text: "b" }];
+  const duasCertas = [{ text: "a", correct: true }, { text: "b", correct: true }];
+  const semTexto = [{ text: "a", correct: true }, { text: "  " }];
+  const feedbackRuim = [{ text: "a", correct: true }, { text: "b", feedback: 3 }];
+  const muitas = Array.from({ length: 7 }, (_, i) => ({ text: "o" + i, correct: i === 0 }));
+  for (const options of [um, semCerta, duasCertas, semTexto, feedbackRuim, muitas, "abc", {}, []]) {
+    assert.match(exercicio({ ...EX_OPCOES, options }), /class="quiz-error"/, JSON.stringify(options).slice(0, 40));
+  }
+});
+
+test("exercicio with options escapes html in options and feedback", () => {
+  const html = exercicio({ ...EX_OPCOES, options: [
+    { text: "<b>x</b>", feedback: "<img src=x>" },
+    { text: "<script>y</script>", correct: true, feedback: "<i>ok</i>" },
+  ] });
+  assert.doesNotMatch(html, /<b>x|<img|<script>|<i>ok/);
+  assert.match(html, /&lt;b&gt;x&lt;\/b&gt;/);
+  assert.match(html, /&lt;img src=x&gt;/);
+});
+
+test("exercicio with options works through renderMarkdown", () => {
+  const html = renderMarkdown("```exercicio\n" + JSON.stringify(EX_OPCOES) + "\n```\n");
+  assert.match(html, /data-correct="1"/);
+});
+
+// ---- Bloco "arquivo": cabeçalho + registros fixos, com calculadora de RRN ----
+const NB = "\u00a0"; // separador de milhar usado nos números
+const arquivo = (data) => renderBlock("arquivo", JSON.stringify(data));
+
+test("arquivo draws header, records and offsets (same numbers as the old ASCII)", () => {
+  const html = arquivo({ cabecalho: 8, registro: 70, mostrar: 4, rrn: 3 });
+  assert.match(html, /<section class="arquivo" data-kind="arquivo" data-cab="8" data-reg="70"/);
+  assert.match(html, /arquivo-head"><span class="arquivo-label">cabeçalho<\/span><span class="arquivo-size">8 bytes/);
+  assert.strictEqual((html.match(/class="arquivo-cell arquivo-rec"/g) || []).length, 4);
+  const marcas = [...html.matchAll(/class="arquivo-tick[^"]*">([^<]*)</g)].map((m) => m[1]);
+  assert.deepStrictEqual(marcas, ["0", "8", "78", "148", "218", "288"]);
+  assert.match(html, /data-arquivo-rrn="3" aria-pressed="true"/);
+  assert.match(html, /data-arquivo-rrn="0" aria-pressed="false"/);
+});
+
+test("arquivo calculator shows the offset formula, with big numbers formatted", () => {
+  assert.match(arquivo({ cabecalho: 8, registro: 70, rrn: 3 }), /O RRN 3 começa no byte <code>8 \+ 3 × 70 = 218<\/code> e ocupa os bytes 218 a 287\./);
+  const grande = arquivo({ cabecalho: 8, registro: 70, rrn: 199 });
+  assert.match(grande, new RegExp(`<code>8 \\+ 199 × 70 = 13${NB}938</code> e ocupa os bytes 13${NB}938 a 14${NB}007`));
+});
+
+test("arquivo without header skips the header cell and the '+ cabeçalho' in the formula", () => {
+  const html = arquivo({ registro: 100, mostrar: 3, rrn: 1 });
+  assert.doesNotMatch(html, /arquivo-head/);
+  assert.match(html, /<code>1 × 100 = 100<\/code>/);
+});
+
+test("arquivo exposes a numeric input limited to valid RRNs", () => {
+  assert.match(arquivo({ registro: 70 }), /<input type="number" class="arquivo-input" data-arquivo-input min="0" max="999999999" step="1" inputmode="numeric" value="3">/);
+});
+
+test("arquivo rejects bad data with quiz-error and escapes the title", () => {
+  const bad = [{}, { registro: 0 }, { registro: 2.5 }, { registro: 70, cabecalho: -1 }, { registro: 70, mostrar: 0 }, { registro: 70, mostrar: 9 }, { registro: 70, rrn: -2 }];
+  bad.forEach((d) => assert.match(arquivo(d), /class="quiz-error"/, JSON.stringify(d)));
+  assert.match(renderBlock("arquivo", "{"), /class="quiz-error"/);
+  assert.doesNotMatch(arquivo({ registro: 70, titulo: "<img src=x>" }), /<img/);
+});
+
+// ---- Bloco "bloco": bloco de disco com fator de bloco e sobra ----
+const bloco = (data) => renderBlock("bloco", JSON.stringify(data));
+
+test("bloco computes blocking factor and leftover (4 096 / 70 = 58, sobra 36)", () => {
+  const html = bloco({ bloco: 4096, registro: 70 });
+  assert.match(html, new RegExp(`fator de bloco = 4${NB}096 / 70 = <strong>58 registros</strong>`));
+  assert.match(html, new RegExp(`registros: 58 × 70 = 4${NB}060 bytes`));
+  assert.match(html, new RegExp(`sobra: 4${NB}096 − 4${NB}060 = <strong>36 bytes</strong> \\(0,9% do bloco\\)`));
+  assert.match(html, /class="bloco-recs" data-dense="false" style="--w:99\.121;--n:58"/);
+  assert.match(html, /class="bloco-sobra" data-has="true" style="--w:0\.879"/);
+  assert.match(html, /aria-label="Bloco de 4\u00a0096 bytes com 58 registros de 70 bytes e 36 bytes de sobra\."/);
+});
+
+test("bloco with no leftover, with singular text and with dense mode", () => {
+  const exato = bloco({ bloco: 4096, registro: 64 });
+  assert.match(exato, /data-has="false" style="--w:0"/);
+  assert.match(exato, /sobra: 4\u00a0096 − 4\u00a0096 = <strong>0 bytes<\/strong> \(0%/);
+  assert.match(bloco({ bloco: 100, registro: 100 }), /= <strong>1 registro<\/strong>/);
+  assert.match(bloco({ bloco: 4096, registro: 10 }), /data-dense="true"/);
+});
+
+test("bloco renders inputs and optional preset buttons", () => {
+  const html = bloco({ bloco: 4096, registro: 70, exemplos: [{ rotulo: "100 bytes", registro: 100 }, { rotulo: "Bloco 8K", registro: 70, bloco: 8192 }] });
+  assert.match(html, /data-bloco-input="bloco" min="1" max="1048576" step="1" inputmode="numeric" value="4096"/);
+  assert.match(html, /data-bloco-input="registro"[^>]*value="70"/);
+  assert.match(html, /<button type="button" class="bloco-preset" data-bloco-set data-registro="100">100 bytes<\/button>/);
+  assert.match(html, /data-registro="70" data-bloco="8192">Bloco 8K</);
+  assert.doesNotMatch(bloco({ bloco: 4096, registro: 70 }), /bloco-presets/);
+});
+
+test("bloco rejects bad data with quiz-error and escapes title and labels", () => {
+  const bad = [{}, { bloco: 4096 }, { bloco: 0, registro: 1 }, { bloco: 100, registro: 101 }, { bloco: 4096, registro: 70.5 }, { bloco: 2000000, registro: 70 },
+    { bloco: 4096, registro: 70, exemplos: "x" }, { bloco: 4096, registro: 70, exemplos: [{ registro: 5 }] }, { bloco: 4096, registro: 70, exemplos: [{ rotulo: "a", registro: 0 }] },
+    { bloco: 4096, registro: 70, exemplos: Array.from({ length: 7 }, () => ({ rotulo: "a", registro: 5 })) }];
+  bad.forEach((d) => assert.match(bloco(d), /class="quiz-error"/, JSON.stringify(d)));
+  const html = bloco({ bloco: 4096, registro: 70, titulo: "<img src=x>", exemplos: [{ rotulo: "<b>x</b>", registro: 5 }] });
+  assert.doesNotMatch(html, /<img|<b>x/);
+});
+
+test("arquivo and bloco work through renderMarkdown", () => {
+  const html = renderMarkdown("```arquivo\n{\"registro\":70}\n```\n\n```bloco\n{\"bloco\":4096,\"registro\":70}\n```\n");
+  assert.match(html, /data-kind="arquivo"/);
+  assert.match(html, /data-kind="bloco"/);
+});
+
+test("bloco says 'menos de 0,1%' instead of a misleading 0% for a tiny leftover", () => {
+  assert.match(bloco({ bloco: 8192, registro: 70 }), /sobra: 8\u00a0192 − 8\u00a0190 = <strong>2 bytes<\/strong> \(menos de 0,1% do bloco\)/);
+});

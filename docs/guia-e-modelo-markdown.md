@@ -238,7 +238,63 @@ Além do `quiz`, a página entende estes blocos. Todos usam três crases seguida
 ```
 ````
 
+**Arquivo com cabeçalho e registros fixos** (bloco `arquivo`). Desenha o cabeçalho e os primeiros registros com o byte onde cada faixa começa. O aluno clica em um registro, ou digita qualquer RRN, e vê a conta `cabeçalho + RRN × tamanho`.
+
+````markdown
+```arquivo
+{ "titulo": "Arquivo com cabeçalho de 8 bytes", "cabecalho": 8, "registro": 70, "mostrar": 4, "rrn": 3 }
+```
+````
+
+- `registro` (obrigatório): tamanho do registro em bytes. `cabecalho` (opcional, padrão 0): tamanho do cabeçalho; com 0 a faixa do cabeçalho some.
+- `mostrar` (opcional, padrão 4): quantos registros desenhar, de 1 a 8. `rrn` (opcional): RRN já selecionado ao abrir. `titulo` (opcional).
+
+**Bloco de disco com sobra** (bloco `bloco`). Mostra a barra do bloco (registros e sobra, em escala real) e as contas de fator de bloco e sobra na organização não espalhada. O aluno muda o tamanho do bloco e do registro e vê tudo recalcular.
+
+````markdown
+```bloco
+{ "titulo": "Bloco de 4 096 bytes", "bloco": 4096, "registro": 70,
+  "exemplos": [ { "rotulo": "Registro de 64 bytes", "registro": 64 } ] }
+```
+````
+
+- `bloco` e `registro` (obrigatórios, em bytes; o registro não pode ser maior que o bloco). Máximo de 1 048 576 bytes.
+- `exemplos` (opcional, até 6): botões "Experimente" que preenchem os campos. Cada um tem `rotulo`, `registro` e, se quiser, `bloco`.
+- Com mais de 200 registros por bloco a barra deixa de mostrar as divisões individuais, mas as contas continuam exatas.
+
+**Exercício com alternativas clicáveis.** O bloco `exercicio` aceita a chave opcional `options`. O aluno clica em uma alternativa e vê na hora se acertou; o gabarito continua disponível e abre sozinho quando ele acerta. Sem `options`, o bloco funciona como antes.
+
+````markdown
+```exercicio
+{ "title": "Exercício 1", "statement": "Quanto é 2 + 2?",
+  "options": [ { "text": "3", "feedback": "Confira a conta." },
+               { "text": "4", "correct": true, "feedback": "Soma simples." } ],
+  "answer": "Resolução completa" }
+```
+````
+
+- `options`: de 2 a 6 alternativas, com `text` (aceita `\n` para várias linhas) e **exatamente uma** com `"correct": true`.
+- `feedback` (opcional): explica o acerto ou, nas erradas, o erro típico que leva àquela alternativa. Sem ele, o erro mostra "Confira os cálculos e tente outra alternativa."
+- O aluno pode tentar de novo: cada alternativa errada fica marcada, e acertar trava o exercício. As alternativas ficam na ordem escrita (não são embaralhadas), então varie a posição da correta.
+- Diferente do bloco `quiz`, estas alternativas **não** entram na trava "selecione uma alternativa em cada questão para continuar".
+
 **Diagramas e pseudocódigo.** Use um bloco `estrutura` para diagramas de layout de dados (fundo claro) e um bloco `pseudocodigo` para algoritmos (fundo escuro). Ambos mantêm os espaços e usam fonte monoespaçada.
+
+**Registro de tamanho fixo interativo** (bloco `registro`). Desenha os campos numa barra proporcional ao tamanho em bytes, separa bytes usados de bytes sem uso e deixa o aluno trocar de exemplo e clicar em um campo para ver o intervalo de bytes e a fórmula do offset. Use no lugar de um diagrama ASCII.
+
+````markdown
+```registro
+{ "titulo": "Registro Aluno (70 bytes)", "cabecalho": 64,
+  "campos": [ { "nome": "nome", "tamanho": 30 }, { "nome": "curso", "tamanho": 20 } ],
+  "exemplos": [ { "rotulo": "Ana", "valores": ["Ana Souza", "Sistemas"] } ] }
+```
+````
+
+- `campos` (obrigatório): de 1 a 12 campos, cada um com `nome` e `tamanho` (inteiro, em bytes). O tamanho do registro é a soma deles.
+- `exemplos` (opcional): cada um com `rotulo` (texto da aba) e `valores` (um texto por campo, na ordem dos campos; use `""` para campo vazio). Com mais de um exemplo aparecem as abas; sem `exemplos` o bloco mostra só o layout vazio.
+- `cabecalho` (opcional): tamanho do cabeçalho do arquivo, em bytes. Se omitido, a fórmula mostra a palavra "cabeçalho".
+- `titulo` (opcional).
+- Os valores são contados em **bytes UTF-8**: `"João"` ocupa 5 bytes, não 4. Um valor que não cabe no campo gera um aviso de erro no lugar do bloco.
 
 **Código em C com animação ao lado** (bloco `codigo`). Mostra o código com a linha atual em destaque e, ao lado, o que acontece naquele passo (bonequinhos coloridos em grupos `[ ]`, legenda em linguagem simples, valores das variáveis). Em telas estreitas a animação fica em cima do código. Tem os botões Anterior, Próximo e Executar (reprodução automática).
 
